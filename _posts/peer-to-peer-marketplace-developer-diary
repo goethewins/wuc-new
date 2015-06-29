@@ -1,0 +1,136 @@
+---
+layout: post
+title: Bitcoin and Interest Rates
+author: Arthur Hayes
+authorurl: http://www.weusecoins.com/paxful-how-to-build-a-peer-to-peer-marketplace
+published: true
+---
+
+So you want to build a bitcoin startup?
+
+Building any reasonably sized web app is complex but building a bitcoin app requires an additional layer of code to interface with the blockchain and the expertise to secure it. A peer to peer marketplace includes additional challenges on top of that. The book can come later but for now here is a short developers brain dump for those crazy enough to go down this road. Have a cup of joe ready.
+
+This article will be simple for developers who understand a  little bit of how bitcoin's blockchain technology works - unconfirmed transaction, block, blockchain, confirmations etc... If you know about them, then you will swim through it :)
+
+&nbsp;
+<h3>The Paxful example</h3>
+Paxful took around 6-8 months to build a fully working bitcoin peer to peer marketplace.
+
+This was for the MVP that has all the functionality that other the marketplaces already have. All of us have at least 5 years of software development experience including financial software for the biggest banks in Europe. This gave us some advantages in that the most common development bad practices were avoided and security was baked into the spine of the product rather than an annoying after thought as with most web apps.
+
+Of course initially we planned to complete it in 2-3 months but as it usually is with software estimations to get realistic estimations you have to multiply it with Tambov constant :)
+
+<a href="http://blog.paxful.com/wp-content/uploads/2015/06/lunch-atop-skyscraper-new-york-construction-workers-crossbeam.jpg"><img class="alignnone wp-image-298 size-large" src="http://blog.paxful.com/wp-content/uploads/2015/06/lunch-atop-skyscraper-new-york-construction-workers-crossbeam-1024x752.jpg" alt="lunch-atop-skyscraper-new-york-construction-workers-crossbeam" width="742" height="545" /></a>
+<h3>Bitcoin technology stack basics</h3>
+Regardless of your project being bitcoin 1.0 or 2.0 you still need to "talk" to blockchain network and execute operations. In talking with blockchain you could either directly deploy your full node and execute <a href="https://en.bitcoin.it/wiki/Original_Bitcoin_client/API_calls_list" target="_blank">RPC commands</a> against your full node's <a href="https://bitcoin.org/en/download" target="_blank">Bitcoin Core</a> (formerly BitcoinD) or use 3rd party providers like <a href="http://www.blockcypher.com/" target="_blank">BlockCypher</a>, <a href="https://chain.com/" target="_blank">Chain.com</a> or others. Compared to couple of years ago todays 3rd party API providers are more reliable than some older ones out there who may have downtimes and funny bugs.
+
+If you want to move with maximum speed then integrate with 3rd party API providers. In our case we didn't want to rely on them because we had bad experiences with these old 3rd parties so we built our own <a href="https://github.com/paxful/EzBitcoin-Api-Wallet" target="_blank">simple bitcoin API server</a> which separates the API server and application layer while still running full node Bitcoin Core. The more full nodes running Bitcoin Core the better!
+
+We recommend this API server over some of the other implementations out there and not just because we wrote it. It does all the basics, has a very simple code structure and REST API endpoints and is built on the best supported PHP framework Laravel. Much more than a wrapper it does full database logging and can help track balance integrity. We also documented installing it step by step so even linux newbies can get it going and even included a security guide. Give it a shot.
+
+&nbsp;
+<h3>Developing a simple and secure bitcoin web wallet</h3>
+Maybe you think that it's not what you planned to develop, but if you are doing something in bitcoin 1.0 you probably have to deal with users balances and therefore must have a wallet. This is a lot more work than it may seem because security must be of primary focus and is the foundation of this application.
+<h3>Database Layer</h3>
+The non bitcoin blockchain part in web wallet is internally managing user balances. Make sure you are familiar with SQL transaction isolation levels to avoid hackers trying to race condition you on withdrawals. <a href="http://blog.2ndquadrant.com/postgresql-anti-patterns-read-modify-write-cycles/" target="_blank">Race conditions are like database layer "double spends"</a>. They do two withdraws at the same time hoping that the balance will only be deducted once. Of course there are more solutions to avoid race conditions like queueing withdrawals or using synchronized methods if your technology stack allows that. Properly locking down your app on the SQL level makes it really bullet-proof. Use an ACID compliant full relational database like Postgres or other popular databases. Avoid NoSQL databases for financial applications in general, having mutexes isn't 100% protection with databases that provide <em>eventual consistency</em>. Also have very strict validation rules and database constraints. Put database constraints like balance column(s) can't be less than 0 value and if you have there any other business logic, for example a POS solution where user can set a tax amount, validate that the tax amount can't be negative, otherwise malicious user can wreak havoc in your system.
+
+<a href="http://blog.paxful.com/wp-content/uploads/2015/06/onshore-construction-materials-engineering-and-testing.jpg"><img class="alignnone wp-image-299 size-large" src="http://blog.paxful.com/wp-content/uploads/2015/06/onshore-construction-materials-engineering-and-testing-1024x500.jpg" alt="onshore---construction-materials-engineering-and-testing" width="742" height="362" /></a>
+<h3>Blockchain Layer</h3>
+Lets jump into the bitcoin/blockchain part. Important components here are:
+<ol>
+	<li><span style="text-decoration: underline;">Generate bitcoin addresses for users, </span></li>
+	<li><span style="text-decoration: underline;">Receive payments, </span></li>
+	<li><span style="text-decoration: underline;">Send out bitcoins</span></li>
+	<li><span style="text-decoration: underline;">Confirm incoming transactions after <em><span style="color: #808080; text-decoration: underline;">n</span></em> confirmations</span></li>
+</ol>
+&nbsp;
+
+<strong>Generating bitcoin address</strong>
+
+That means you are basically generating a private key that will let you spend from that bitcoin address and also you can derive a public key from private key. The public key is the bitcoin address or "account number". In case of a 3rd party API they can generate private key and bitcoin address for you so you would need to store them securely or at least encrypt them in the database. In case of using Bitcoin Core, use RPC commands to generate new bitcoin addresses. Bitcoin Core will handle pool of private keys for you. By using our simple API server, we are saving generated bitcoin addresses in a database which allows for faster lookup and match them with users.
+
+<strong>Receive payments aka "HELLO WORLD"</strong>
+
+This part relates to the bitcoin/blockchain and is fairly trivial yet the extreme lack of documentation on the topic made this almost like alchemy in the early days of bitcoin development. Getting this working is the equivalent of a "hello world" for blockchain engineering.
+
+[caption id="attachment_300" align="alignnone" width="742"]<a href="http://blog.paxful.com/wp-content/uploads/2015/06/Low-rise-construction-1259652195_26.jpg"><img class="size-large wp-image-300" src="http://blog.paxful.com/wp-content/uploads/2015/06/Low-rise-construction-1259652195_26-1024x683.jpg" alt="Low-rise building construction" width="742" height="495" /></a> The Blockchain is the future database structure of the entire internet, better start the "hello world"s now.[/caption]
+
+You are just listening on blockchain if there is an unconfirmed transaction coming to that address. With a 3rd party API you are providing them with your webhook/callback URL where the notification of a new unconfirmed transaction will be sent with all data related to it - amount of bitcoins, transaction hash and all the other data of a bitcoin transaction. A webhook/callback URL is the URL endpoint in your web app that a notification hits with data and therefore notifies that you that you received a transaction. In case of using Bitcoin Core or Paxful's simple API server, you would need to edit  Bitcoin Core's config file <em><span style="color: #808080;">wallet notify</span> </em>callback URL too which is exactly same approach as with 3rd party providers. You can find more about setting up <em><span style="color: #808080;">walletnotify</span> </em>in our <a href="https://github.com/paxful/EzBitcoin-Api-Wallet/blob/master/readme.md" target="_blank">documentation</a>.
+
+After your web app got hit with new incoming payment do your business logic for wallet. That feeling of accomplishment is great when you actually got your first walletnotify :) It's not recommended to confirm that amount as received, because unconfirmed bitcoin transaction in the network could still be double spent. Depending on your business risk factor you should decide on how many block confirmations you should set transaction as fully received and cleared in the network. Some exchanges require 6 confirmations, some require 3. We require 3 as well.
+
+<strong>Confirm incoming transactions</strong>
+
+How do you know if a transaction received 1 confirmation or 2 confirmations and so on? In a 3rd party providers case once you set up the web hook you can set on how many confirmations the notification will shoot. In case of Bitcoin Core, <em><span style="color: #808080;">walletnotify</span></em> shoots on 0 confirmation (once the transaction hits the mempool) and on the 1st confirmation. To track the  2nd, 3rd and so on you have to set up a callback URL for <em><span style="color: #808080;">blocknotify</span></em>. That is well documented in our API server. As for schema design you would probably keep unconfirmed transactions in one table and then move all confirmed transactions to a cleared transactions table.
+
+When going the Bitcoin Core way you have an unconfirmed transaction and want to get the new number of confirmations, wait for <em><span style="color: #808080;">blocknotify</span> </em>callback<em> </em>and when you get it, do an RPC call <em><span style="color: #808080;">gettransaction</span></em> for every unconfirmed transaction and you'll have its new confirmations number.
+
+<strong>IMPORTANT!</strong> Here is a risk for a race condition. In the bitcoin network 2 blocks can be found literally at the same time which means you will receive <em><span style="color: #808080;">blocknotify</span></em> twice right away and during your business logic operations some unknown consequences may happen. To avoid it your callback URL defined method should be executed synchronously, for example in a queue.
+
+<strong>Send out bitcoins</strong>
+
+Now you are ready to send out payments. Send out functionality is rather different when using 3rd party providers and Bitcoin Core. Each 3rd party has their own approach to send out funds. It's because you have to provide them private keys for the addresses where you want to spend from but in Bitcoin Core's case it's internally managing all the private keys and automatically chooses the most optimal outputs to send from. When sending out bitcoins update your user balance accordingly. Be sure to use transactions and an ACID compliant relational database. Which database is best is a spicy topic and worth of it's own paper or book.
+
+We have excluded developing any kind of phone wallets, multisig solutions or bitcoin 2.0 projects as above described and only talked about bitcoin/blockchain specific functionality. Be aware that this blockchain relevant code base  is very tiny compared to the whole code base you would have to write for your app. The rest is just your industry specific business logic  and the code can be as complex as needed.
+
+&nbsp;
+<h3>The peer to peer marketplace part</h3>
+Here talking to bitcoin/blockchain network is not necessary and everything happens on the application level.
+
+<a href="http://blog.paxful.com/wp-content/uploads/2015/06/effectively_market_your_company_online_to_build_your_online_presence.jpg"><img class="alignnone size-full wp-image-302" src="http://blog.paxful.com/wp-content/uploads/2015/06/effectively_market_your_company_online_to_build_your_online_presence.jpg" alt="effectively_market_your_company_online_to_build_your_online_presence" width="550" height="364" /></a>
+
+<strong>Create offers/ads</strong>
+
+Markets connect buyers and sellers and offers are the central objects that let them discover each other. Set your rules here. These decisions will affect everything and can dynamically change the marketplace culture and economy.
+<ol>
+	<li>Are payment methods hard-coded?</li>
+	<li>Will you allow users to dynamically create new payment methods? Drop down or Stackoverflow tagging system approach?</li>
+	<li>Set payment window time? I.e 90 minutes for buyer to complete payment or 3 days for a check?</li>
+	<li>BTC price premium? I.e 10% over the average price across all exchanges?</li>
+	<li>Which users can see which offers? I.e only logged in users with at least 10 completed trades, etc...</li>
+</ol>
+Additionally have all the CRUD (create, read, update, delete) operations for the offer and all the business logic like updating price every 10 minutes, activating, deactivating and so on.
+
+<strong>The trading part</strong>
+
+When users decide to accept an offer and begin a trade they are essentially in a live instant messaging session that has a process flow. With every point reached there are different rules and logic.
+<ul>
+	<li><span style="text-decoration: underline;">Start trade</span></li>
+	<li><span style="text-decoration: underline;">Mark trade as paid</span></li>
+	<li><span style="text-decoration: underline;">Complete trade</span></li>
+	<li><span style="text-decoration: underline;">Auto-cancel trade</span></li>
+	<li><span style="text-decoration: underline;">Cancel trade by user</span></li>
+	<li><span style="text-decoration: underline;">Dispute trade</span></li>
+	<li><span style="text-decoration: underline;">Leave feedback</span></li>
+</ul>
+For all these mentioned trade actions the business logic has to be extremely well thought through and code written well with all edge cases taken into account. Otherwise you can end up with adding balance twice, deleting accidentally records or simply break database schema. Not to mention that the entire process must MAKE SENSE to a first time buyer and guide them through step by step. This process cost us quite a few hairs on our heads. Good luck!
+
+<strong>Trade live chat</strong>
+
+This is a lot deeper than it may seem and depends how fancy you want to get. Are you going to use primitive AJAX long polling or 3rd party plugins like Pusher, Firebase or your own solution with web sockets, XMPP and OpenFire or abstractions like Faye or Converse.js. Consider also that you need moderator messages in case of dispute and anything else you see there.
+
+<strong>File Upload and video</strong>
+
+Media is an integral part of the trade process. Sellers want ID, receipts pictures and sometimes even a live video feed. Building these is tough but securing them doubles the complexity. We suggest going with the leading third parties here to avoid keeping any such media on your servers. Security first!
+
+<strong>Feedback system</strong>
+
+This is another critical part to keep your platform fair, safe and scammer free. The rules here have an EXTREME impact on market dynamics as reputation is the beating heart of any free market. What decisions shall you make? Leave feedback for every trade or per trade partner? Our approach is to leave feedback to every trade and a reply can be left too. In case of dispute a loser can't leave feedback. We listened to our traders and built the feedback system for them. Win Win Win!
+
+<strong>Reporting capabilities for any historical data/actions</strong>
+
+That is what your users would require from you. Some of the power sellers will be doing alot of trades and need to report their profits, trades to their government and tax authorities. Make data generation and exporting very convinient for them. For historical data users want to see their completed trades, activity ledger, transactions ledger, generated bitcoin addresses and any other historical data there might be. This is a huge project in and of itself. A whole startup could be built helping pro traders track profits.
+
+<strong>Backend admin for website health</strong>.
+
+Because you are probably in custody of users funds you surely want to know at any moment how much bitcoin is kept in your system and what is total bitcoin balance, users balances in database, active trades, history and anything you can think of and you want to see it in real time.
+<h3>Cold Storage</h3>
+Lets not forget cold storage! Set watch addresses for your cold storage and think of procedures that you have to follow to refill hot wallet/move funds to cold storage. This is another deep topic and worthy of a long guide.
+
+&nbsp;
+<h3>Conclusion</h3>
+All the points above were focused on building a bitcoin peer to peer marketplace. We didn't get into enterprise software and secure website development, unit tests, scalability, caching, replication, disaster recovery, build automation, backups, validations, ddos protection and defense against the most common hacks. Depending on your rush for MVP and how much of infrastructure or code organization/refactoring you are willing to do this could be a the beginning of a new age of financial freedom for humanity or another bitcoin disaster waiting to happen.
+
+For secure web application development we have some tips shared in another blog post <a href="https://blog.paxful.com/7-security-tips-bitcoin-startups-must-not-ignore/">https://blog.paxful.com/7-security-tips-bitcoin-startups-must-not-ignore/</a> We will be sharing our security tips in an ongoing series. The more we develop the eco system and share knowledge the better the bitcoin world will be and that will lead to a better more paxful world.
+
+Paxful means "peace" in Latin.
