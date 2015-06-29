@@ -1,0 +1,249 @@
+---
+layout: post
+title: Bitcoin and Interest Rates
+author: Arthur Hayes
+authorurl: http://www.weusecoins.com/security-bitcoin-startups
+published: true
+---
+Bitcoin sites are the focus of intense hacking.
+
+More than just a steady flood of hacking, bitcoin hacking has become more of a culture within a subculture. As such their methods are ever evolving and they are extremely coordinated. Once a critical flaw is found it is exploited rapidly throughout the entire eco system. Conventional security guides cannot keep up with such a culture nor do they understand the unique terrain that bitcoin startups must deal with. There is a lot of talk about securing bitcoin as a user but very little in the way of security guides for those running bitcoin services. It's time began sharing what we have learned.
+
+We at Paxful have had to deal with nearly every hacking the book. As a peer to peer market place that is home to many pro traders who have a great deal of bitcoin we must secure our users as well as our hot wallet. Our founders have built a previous bitcoin exchange, worked with the European SEPA banking network and released an <a href="https://github.com/paxful/EzBitcoin-Api-Wallet">open source Bitcoin API server</a> . Here are seven security tips that you must deploy right away. In the end it could save your startup.
+<ol>
+	<li>Clickjacking</li>
+	<li>XSS Attacks</li>
+	<li>Webserver Hardening</li>
+	<li>Port and IP Cloaking</li>
+	<li>SQL Injection</li>
+	<li>No NoSQL For Financial transactions</li>
+	<li>Race Conditions</li>
+	<li>Vulnerability Scanner blocks</li>
+</ol>
+There is ALOT more to cover and we'll be releasing more tips going forward as a series.
+<h3>Click Jacking</h3>
+Attackers have become skilled at getting users to perform their desired actions for them using their own clicks against them. They will insert an iframe of a website they usually use and are logged into within your website. This is <a href="https://www.owasp.org/index.php/Clickjacking_Defense_Cheat_Sheet">clickjacking</a>.
+
+[caption id="attachment_262" align="alignnone" width="640"]<a href="http://blog.paxful.com/wp-content/uploads/2015/05/accessing-users-webcam.jpg"><img class="wp-image-262 size-full" src="http://blog.paxful.com/wp-content/uploads/2015/05/accessing-users-webcam.jpg" alt="One of their favorite tricks is getting users to allow flash scripts to have total access. Then they inject a flash script to let them invade users machines." width="640" height="490" /></a> One of their favorite tricks is getting users to allow flash scripts to have total access. Then they inject a flash script to let them invade users machines.[/caption]
+
+[caption id="attachment_263" align="alignnone" width="510"]<a href="http://blog.paxful.com/wp-content/uploads/2015/05/clickjacking.gif"><img class="wp-image-263 size-full" src="http://blog.paxful.com/wp-content/uploads/2015/05/clickjacking.gif" alt="The basics of clickjacking are get them to give you their private information by typing it in themselves." width="510" height="462" /></a> The basics of clickjacking are get them to give you their private information by typing it in themselves.[/caption]
+
+Adding "<a href="https://gist.github.com/plentz/6737338">add_header X-Frame-Options SAMEORIGIN;</a>" to your nginx configuration file can protect against this on the server level but it isn't enough. You should also add some <a href="https://www.owasp.org/index.php/Clickjacking_Defense_Cheat_Sheet">client side code to each page request to bust out of any frames</a> not originating from your server.
+<h6 style="padding-left: 30px;">&lt;style id="antiClickjack"&gt;body{display:none !important;}&lt;/style&gt;</h6>
+<h6 style="padding-left: 30px;">&lt;script type="text/javascript"&gt;
+if (self === top) {
+var antiClickjack = document.getElementById("antiClickjack");
+antiClickjack.parentNode.removeChild(antiClickjack);
+} else {
+top.location = self.location;
+}
+&lt;/script&gt;</h6>
+&nbsp;
+<h3>XSS Attacks</h3>
+Anytime you allow the user to give you data that you will display to the browser you risk XSS attacks. Attackers can insert malicious client side javascript or redirects. They can easily steal traffic and even worse any and all user information. Usually considered not as serious as SQL injection many websites neglect protecting their users against css attacks and instead of having their entire site hacked they simply get all their active users hacked instead, which is just as bad.
+
+[caption id="attachment_264" align="alignnone" width="700"]<a href="http://blog.paxful.com/wp-content/uploads/2015/05/persistent-xss.png"><img class="wp-image-264 size-full" src="http://blog.paxful.com/wp-content/uploads/2015/05/persistent-xss-e1430847508878.png" alt="XSS attacks allow attackers to make your website work for them by inserting malicious client side scripts into the user data you output to the browser. They can steal away your traffic and rob your active users of their data." width="700" height="397" /></a> XSS attacks allow attackers to make your website work for them by inserting malicious client side scripts into the user data you output to the browser. They can steal away your traffic and rob your active users of their data.[/caption]
+
+There are some measures you can take on the server side configuration side but primarily it is up to you <a href="https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet">to escape any and all content you take from users before you spit it back out</a>.
+<h4><span id="RULE_.230_-_Never_Insert_Untrusted_Data_Except_in_Allowed_Locations" class="mw-headline">Ex.  Never Insert Untrusted Data Except in Allowed Locations</span></h4>
+<ul>
+	<li>&lt;script&gt;<b>...NEVER PUT UNTRUSTED DATA HERE...</b>&lt;/script&gt; directly in a script</li>
+	<li>&lt;!--<b>...NEVER PUT UNTRUSTED DATA HERE...</b>--&gt; inside an HTML comment</li>
+	<li>&lt;div <b>...NEVER PUT UNTRUSTED DATA HERE...</b>=test /&gt; in an attribute name</li>
+	<li>&lt;<b>NEVER PUT UNTRUSTED DATA HERE...</b> href="/test" /&gt; in a tag name &lt;style&gt;<b>...NEVER PUT UNTRUSTED DATA HERE...</b>&lt;/style&gt; directly in CSS</li>
+	<li>&lt;body&gt;<b>...ESCAPE UNTRUSTED DATA BEFORE PUTTING HERE...</b>&lt;/body&gt;</li>
+	<li>&lt;div&gt;<b>...ESCAPE UNTRUSTED DATA BEFORE PUTTING HERE...</b>&lt;/div&gt;</li>
+	<li>&lt;div attr=<b>...ESCAPE UNTRUSTED DATA BEFORE PUTTING HERE...</b>&gt;content&lt;/div&gt; inside UNquoted attribute</li>
+	<li>&lt;div attr='<b>...ESCAPE UNTRUSTED DATA BEFORE PUTTING HERE...'</b>&gt;content&lt;/div&gt; inside single quoted attribute</li>
+	<li>&lt;div attr="<b>...ESCAPE UNTRUSTED DATA BEFORE PUTTING HERE...</b>"&gt;content&lt;/div&gt; inside double quoted attribute.</li>
+	<li><a href="https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet">etc....</a></li>
+</ul>
+&nbsp;
+<h3>Webserver Hardening</h3>
+Chances are you're either using Apache or Nginx to host your web app. N-ginx (pronounced engine X) is a popular choice for a non bloated fast web server. <a href="https://gist.github.com/plentz/6737338">Locking it down involves editing the main nginx.conf file usually in /usr/local/nginx/conf/nginx.conf.</a> Here is a list of settings to properly lock it down on the server level. This will offer protection against XSS, cross site forgery
+<h6 style="padding-left: 30px;"># config to don't allow the browser to render the page inside an frame or iframe
+# and avoid clickjacking http://en.wikipedia.org/wiki/Clickjacking
+# if you need to allow [i]frames, you can use SAMEORIGIN or even set an uri with ALLOW-FROM uri
+# https://developer.mozilla.org/en-US/docs/HTTP/X-Frame-Options
+add_header X-Frame-Options SAMEORIGIN;</h6>
+# when serving user-supplied content, include a X-Content-Type-Options: nosniff header along with the Content-Type: header,
+# to disable content-type sniffing on some browsers.
+# https://www.owasp.org/index.php/List_of_useful_HTTP_headers
+# currently suppoorted in IE &gt; 8 http://blogs.msdn.com/b/ie/archive/2008/09/02/ie8-security-part-vi-beta-2-update.aspx
+# http://msdn.microsoft.com/en-us/library/ie/gg622941(v=vs.85).aspx
+# 'soon' on Firefox https://bugzilla.mozilla.org/show_bug.cgi?id=471020
+add_header X-Content-Type-Options nosniff;
+
+# This header enables the Cross-site scripting (XSS) filter built into most recent web browsers.
+# It's usually enabled by default anyway, so the role of this header is to re-enable the filter for
+# this particular website if it was disabled by the user.
+# https://www.owasp.org/index.php/List_of_useful_HTTP_headers
+add_header X-XSS-Protection "1; mode=block";
+
+# with Content Security Policy (CSP) enabled(and a browser that supports it(http://caniuse.com/#feat=contentsecuritypolicy),
+# you can tell the browser that it can only download content from the domains you explicitly allow
+# http://www.html5rocks.com/en/tutorials/security/content-security-policy/
+# https://www.owasp.org/index.php/Content_Security_Policy
+# I need to change our application code so we can increase security by disabling 'unsafe-inline' 'unsafe-eval'
+# directives for css and js(if you have inline css or js, you will need to keep it too).
+# more: http://www.html5rocks.com/en/tutorials/security/content-security-policy/#inline-code-considered-harmful
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://ssl.google-analytics.com https://assets.zendesk.com https://connect.facebook.net; img-src 'self' https://ssl.google-analytics.com https://s-static.ak.facebook.com https://assets.zendesk.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://assets.zendesk.com; font-src 'self' https://themes.googleusercontent.com; frame-src https://assets.zendesk.com https://www.facebook.com https://s-static.ak.facebook.com https://tautt.zendesk.com; object-src 'none'";
+
+Any off-site script or resource you call in your pages must have it's domain added to the above line. For example, google analytics, any con's hosting js or css files etc..
+
+You'll also have to add a few lines to each site's config file to protect against SSL Beast attacks by disabling ssl3 etc.. Take any and all precautions as the more and more bitcoin is worth the more desperate and extreme hackers will get. Remember the heart bleed zero day exploit? It bleed out quite a few bitcoins as well. SSL powers the entire secure web and it is an object of constant attention by hackers, stay on top of it.
+
+&nbsp;
+<h3>SSH IP and Port Cloaking</h3>
+SSH remains the primary way that admins access linux servers. While an essentially secure protocol the fact that most admins leave the port settings on the default and also access ssh via the same ip address as public users to their web app. We can do better than this and for financial applications we MUST do better. Purchase another ip address, preferably from a different subnet, from your web host and <a href="http://askubuntu.com/questions/313877/how-do-i-add-an-additional-ip-address-to-etc-network-interfaces">assign this new ip address to your network card</a>. Then <a href="http://serverfault.com/questions/604316/change-ssh-port-for-specific-ip-address">configure ssh to only be accessed from this ip address</a>. <a href="https://www.digitalocean.com/community/tutorials/how-to-setup-a-firewall-with-ufw-on-an-ubuntu-and-debian-cloud-server">Setup your firewall to allow ssh access via this ip address</a>. Now hackers will have a much harder time even locating your ssh ip address. In addition to this there is also the option of changing the default ssh port for ssh on the cloaked ip address.
+
+There is intense debate about weather or not moving ssh ports off the default of 22 to something random like 22042. Some argue that <a href="https://www.adayinthelifeof.nl/2012/03/12/why-putting-ssh-on-another-port-than-22-is-bad-idea/">moving ssh off port 22 encourages the lazy practice of security obscurity</a> and that webmasters should reply on keys and disable passwords etc. Others argue that <a href="https://danielmiessler.com/blog/putting-ssh-another-port-good-idea/">changing the ssh port off the default is a good idea</a> as it protects against zero day exploits. One webmaster logged over 4 scans on his non conventional ssh port and over twenty two thousand to his default ssh port, in a single day. We say , change your ssh port to anything other than the default. Hackers usually go for low hanging fruit and if it buys you even a single day from a zero day exploit it could make all the difference.
+
+Many bitcoin startups have opted to use the <a href="https://github.com/bitcoin/bitcoin">full node of the original bitcoin core server</a>, and still best in our humble opinion, bitcoin server. This software is currently in 0.10 and is maintained by the very best developers in the bitcoin world. We suggest everyone use this server as it is the most battle hardened. Securing a server with Bitcoin Core isa job in and of itself but one of the best things you can do is to close up the RPC ports and specify new hard to guess ones. Determined attackers will do port scans and find them anyway but you'd be surprised at how lazy most hackers are, they spend most of their time looking for low hanging fruit and if you pass that test they usually move on. Here are some examples
+<h3></h3>
+<h3>SQL Injection</h3>
+It is sad that we even have to mention this exploit this day and age but an enormous amount of web applications are still vulnerable to sql injection. Many frame works protect against such attacks but many developers still do not use frameworks or use custom frameworks and forget to escape their user database destined input. The PHP community is notorious for this as it draws in many newbie coders who are happy just to get anything working at all that they utterly neglect security.
+
+[caption id="attachment_265" align="alignnone" width="510"]<a href="http://blog.paxful.com/wp-content/uploads/2015/05/sqlinjection.png"><img class="wp-image-265 size-full" src="http://blog.paxful.com/wp-content/uploads/2015/05/sqlinjection.png" alt="SQL injection is when hackers submit sql database code in form fields hoping that the web app doesn't escape the input. This way they can simply get a dump of the entire database with the right sql statement or give themselves admin access to the server." width="510" height="270" /></a> SQL injection is when hackers submit sql database code in form fields hoping that the web app doesn't escape the input. This way they can simply get a dump of the entire database with the right sql statement or give themselves admin access to the server.[/caption]
+
+We're not hating on PHP as it is still the most popular language on the internet, powering wordpress, Facebook and Flickr etc. With the right framework and precautions is can be one of the most secure platforms because of it;s maturity, twenty plus years. The use of database ORM packages that ship with many frameworks such as <a href="http://laravel.com/docs/4.2/eloquent">Eloquent in Laravel</a> will automatically escape user input.
+
+&nbsp;
+<h3>Say No to NoSQL</h3>
+Flexcion fell prey to a hack attack that drained their hot wallet because of their use of NoSql database mongoDB for financial transactions. While <a href="http://docs.mongodb.org/manual/core/write-operations-atomicity/">MongoDB has some support for atomic transactions</a> it is nowhere near the level required for a financial application. Stick with a proven relational database with time test ACID support like PostgresSQL. NoSQL can be used for non financial data such as log tables and chat messages. Always use atomic transactions for all financial inserts, and updates.
+
+Also a special note to MongoDB users take care to lockdown web access to your MongoDb instance. A <a href="http://thehackernews.com/2015/02/mongodb-database-hacking.html">recent security scan discovered over 40,000 MongoDB instances admin panels were freely available to browser via port 27017</a>. It seems that some NoSQL users psychologically don't see their databases as hacking targets and thus do not lockdown their instances. A <a href="%20http://www.shodanhq.com">vulnerability search engine</a> like shodanhq will as of now reveal an immense amount number of such databases vulnerable to hacking or outright access.
+
+&nbsp;
+<h3>Race Conditions</h3>
+Race conditions in software are when two concurrent threads of execution access a shared resource in a way that unintentionally produces different results depending on the time at which the code is executed. For example, a multi-threaded program may spawn 2 threads that have access to the same location in memory. Thread #1 might store the value 300 in this location and expect it to still be 300 a few instructions later. Since thread #2 is executing at the same time as thread #1, thread #2 may overwrite the memory location with another value while thread #1 still expects it to be 300. Sometimes it will happen, sometimes it will not. It depends if thread #2 is "lucky enough" to execute just after thread #1 wrote the value 300.
+
+[caption id="attachment_267" align="alignnone" width="300"]<a href="http://blog.paxful.com/wp-content/uploads/2015/05/racecondition.png"><img class="size-medium wp-image-267" src="http://blog.paxful.com/wp-content/uploads/2015/05/racecondition-300x250.png" alt="Race conditions can devastate financial apps" width="300" height="250" /></a> Race conditions can devastate financial apps[/caption]
+
+This deserves a whole article and it will get one but be on the lookout for race condition attacks which are essentially application level double spend attacks. These can be absolutely devastating and require a deep understanding of row locking. Simply relying on your relational <a href="http://blog.2ndquadrant.com/postgresql-anti-patterns-read-modify-write-cycles/">SQL databases </a>transaction systems are not enough.
+
+&nbsp;
+<h3>Vulnerability Scanner Blocks</h3>
+The first thing hackers and script kiddies alike do is to run a security vulnerability scanner like <a href="http://www.acunetix.com/blog/docs/create-web-scanning-profiles/">Acunetix</a> on your side. It scans for common app paths and tries to hijack every form on your web app. It is a good idea to run this on your own application if if others try and run it on your app then it is best to block them.
+
+There are three ways to do this. On the web server level with say Nginx, in your robots.txt and in your webapp itself.
+
+<a href="https://github.com/imduffy15/ConfigScripts/blob/master/nginxsetup/nginx.vhost.conf.template">Add these lines within your Nginx conf file.</a>
+
+sudo nano /usr/local/nginx/conf/nginx.conf
+<blockquote>server {
+#protect from vulnerability scanners
+if ($http_user_agent ~* (Baiduspider|webalta|nikto|wkito|pikto|scan|acunetix|morfeus|webcollage|youdao) ) {
+return 401;
+}
+
+if ($http_user_agent ~* (HTTrack|clshttp|archiver|loader|email|harvest|extract|grab|miner) ) {
+return 401;
+}
+}</blockquote>
+&nbsp;
+
+Add these lines to your web app. This example is for PHP. add it to the first files to execute
+<blockquote>//protect against acunetix security scanner
+<em>if ( isset($_SERVER['HTTP_ACUNETIX_PRODUCT']) || isset($_SERVER['HTTP_ACUNETIX_SCANNING_AGREEMENT']) || isset($_SERVER['HTTP_ACUNETIX_USER_AGREEMENT']) ){ </em>
+<em> exit();</em>
+<em>}</em></blockquote>
+&nbsp;
+
+Then add these lines to your robots.txt file
+<blockquote><em>User-agent: Acunetix</em>
+<em>Disallow: /</em>
+
+<em>User-agent: UbiCrawler</em>
+<em>Disallow: /</em>
+
+<em>User-agent: DOC</em>
+<em>Disallow: /</em>
+
+<em>User-agent: Zao</em>
+<em>Disallow: /</em>
+
+<em>User-agent: sitecheck.internetseer.com</em>
+<em>Disallow: /</em>
+
+<em>User-agent: Zealbot</em>
+<em>Disallow: /</em>
+
+<em>User-agent: MSIECrawler</em>
+<em>Disallow: /</em>
+
+<em>User-agent: SiteSnagger</em>
+<em>Disallow: /</em>
+
+<em>User-agent: WebStripper</em>
+<em>Disallow: /</em>
+
+<em>User-agent: WebCopier</em>
+<em>Disallow: /</em>
+
+<em>User-agent: Fetch</em>
+<em>Disallow: /</em>
+
+<em>User-agent: Offline Explorer</em>
+<em>Disallow: /</em>
+
+<em>User-agent: Teleport</em>
+<em>Disallow: /</em>
+
+<em>User-agent: TeleportPro</em>
+<em>Disallow: /</em>
+
+<em>User-agent: WebZIP</em>
+<em>Disallow: /</em>
+
+<em>User-agent: linko</em>
+<em>Disallow: /</em>
+
+<em>User-agent: HTTrack</em>
+<em>Disallow: /</em>
+
+<em>User-agent: Microsoft.URL.Control</em>
+<em>Disallow: /</em>
+
+<em>User-agent: Xenu</em>
+<em>Disallow: /</em>
+
+<em>User-agent: larbin</em>
+<em>Disallow: /</em>
+
+<em>User-agent: libwww</em>
+<em>Disallow: /</em>
+
+<em>User-agent: ZyBORG</em>
+<em>Disallow: /</em>
+
+<em>User-agent: Download Ninja</em>
+<em>Disallow: /</em>
+
+<em>User-agent: wget</em>
+<em>Disallow: /</em>
+
+<em>User-agent: grub-client</em>
+<em>Disallow: /</em>
+
+<em>User-agent: k2spider</em>
+<em>Disallow: /</em>
+
+<em>User-agent: NPBot</em>
+<em>Disallow: /</em>
+
+<em>User-agent: WebReaper</em>
+<em>Disallow: /</em>
+
+<em>User-agent: *</em>
+<em>Disallow: /100mb.bin</em>
+<em>Allow: /</em></blockquote>
+&nbsp;
+<h3>Conclusion</h3>
+The biggest bitcoin heist of all, MT. Gox was blamed on a core bitcoin flaw called "transaction malleability" It was not included in the list because it is no longer a real issue and as more and more people suspect it was never a real issue, certainly not one big enough to account for the loss of over 800,000 bitcoins. Instead of worrying about unique and extreme exploits we should focus on the known basics and fundamentals of security. If the entire industry committed to this we'd have a far after and more secure crypto eco system and that is good for all of us.
+
+&nbsp;
+
+&nbsp;
+
+&nbsp;
